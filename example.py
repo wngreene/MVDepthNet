@@ -12,6 +12,18 @@ from torch import Tensor
 from depthNet_model import depthNet
 from visualize import *
 
+def start_timer():
+        torch.cuda.synchronize()
+        tick = torch.cuda.Event(enable_timing=True)
+        tock = torch.cuda.Event(enable_timing=True)
+        tick.record()
+        return tick, tock
+
+def stop_timer(tick, tock):
+        tock.record()
+        torch.cuda.synchronize()
+        return tick.elapsed_time(tock)
+
 with open('sample_data.pkl', 'rb') as fp:
     sample_datas = pickle.load(fp)
 
@@ -32,8 +44,8 @@ pixel_coordinate = np.reshape(pixel_coordinate, [3, -1])
 cv2.namedWindow('result')
 cv2.moveWindow('result', 200, 200)
 
+count = 0
 for this_sample in sample_datas:
-
     # get data
     depth_image_cuda = Tensor(this_sample['depth_image']).cuda()
     depth_image_cuda = Variable(depth_image_cuda, volatile=True)
@@ -59,7 +71,12 @@ for this_sample in sample_datas:
     KRKiUV_cuda_T = Tensor(KRKiUV).cuda()
     KT_cuda_T = Tensor(KT).cuda()
 
+    tick, tock = start_timer()
+
     predict_depths = depthnet(left_image_cuda, right_image_cuda, KRKiUV_cuda_T, KT_cuda_T)
+
+    time_ms = stop_timer(tick, tock)
+    print("Elapsed time({}/{}): {} ms".format(count, len(sample_datas), time_ms))
 
     # visualize the results
     np_left = np2Img(np.squeeze(this_sample['left_image']), True)
@@ -77,3 +94,5 @@ for this_sample in sample_datas:
     cv2.imshow("result", result_image)
     if cv2.waitKey(1000) == 27:
         break
+
+    count +=1
