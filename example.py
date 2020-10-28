@@ -27,8 +27,11 @@ def stop_timer(tick, tock):
 with open('sample_data.pkl', 'rb') as fp:
     sample_datas = pickle.load(fp)
 
+image_height = 480
+image_width = 640
+
 # model
-depthnet = depthNet()
+depthnet = depthNet([image_height, image_width])
 model_data = torch.load('opensource_model.pth.tar')
 depthnet.load_state_dict(model_data['state_dict'])
 depthnet = depthnet.cuda()
@@ -36,9 +39,9 @@ cudnn.benchmark = True
 depthnet.eval()
 
 # for warp the image to construct the cost volume
-pixel_coordinate = np.indices([320, 256]).astype(np.float32)
+pixel_coordinate = np.indices([image_width, image_height]).astype(np.float32)
 pixel_coordinate = np.concatenate(
-    (pixel_coordinate, np.ones([1, 320, 256])), axis=0)
+    (pixel_coordinate, np.ones([1, image_width, image_height])), axis=0)
 pixel_coordinate = np.reshape(pixel_coordinate, [3, -1])
 
 cv2.namedWindow('result')
@@ -46,6 +49,27 @@ cv2.moveWindow('result', 200, 200)
 
 count = 0
 for this_sample in sample_datas:
+    # Resize sample.
+    xfactor = float(image_width) / this_sample["left_image"].shape[-1]
+    yfactor = float(image_height) / this_sample["left_image"].shape[-2]
+
+    this_sample["left_image"] = np.transpose(np.squeeze(this_sample["left_image"]), (1, 2, 0))
+    this_sample["right_image"] = np.transpose(np.squeeze(this_sample["right_image"]), (1, 2, 0))
+
+    this_sample["left_image"] = cv2.resize(this_sample["left_image"], (image_width, image_height))
+    this_sample["right_image"] = cv2.resize(this_sample["right_image"], (image_width, image_height))
+    this_sample["depth_image"] = cv2.resize(np.squeeze(this_sample["depth_image"]), (image_width, image_height))
+
+    this_sample["left_image"] = np.transpose(this_sample["left_image"], (2, 0, 1))
+    this_sample["right_image"] = np.transpose(this_sample["right_image"], (2, 0, 1))
+
+    this_sample["left_image"] = np.expand_dims(this_sample["left_image"], 0)
+    this_sample["right_image"] = np.expand_dims(this_sample["right_image"], 0)
+    this_sample["depth_image"] = np.expand_dims(np.expand_dims(this_sample["depth_image"], 0), 0)
+
+    this_sample["K"][0, :] *= xfactor
+    this_sample["K"][1, :] *= yfactor
+
     # get data
     depth_image_cuda = Tensor(this_sample['depth_image']).cuda()
     depth_image_cuda = Variable(depth_image_cuda, volatile=True)

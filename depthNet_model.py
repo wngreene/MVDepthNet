@@ -74,9 +74,11 @@ def get_trainable_number(variable):
 class depthNet(nn.Module):
     """docstring for depthNet"""
 
-    def __init__(self):
+    def __init__(self, image_size):
         super(depthNet, self).__init__()
         # input of the net is plane_sweep_volume, left_image
+
+        self.image_size = image_size
 
         # build the net
         # implement a hourglass structure with residure learning
@@ -139,8 +141,8 @@ class depthNet(nn.Module):
         costvolume = Variable(
             torch.cuda.FloatTensor(left_image.shape[0], 64,
                                    left_image.shape[2], left_image.shape[3]))
-        image_height = 256
-        image_width = 320
+        image_height = self.image_size[0]
+        image_width = self.image_size[1]
         batch_number = left_image.shape[0]
 
         normalize_base = torch.cuda.FloatTensor(
